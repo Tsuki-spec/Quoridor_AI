@@ -1,0 +1,105 @@
+{
+  "python": "3.10.12",
+  "python_executable": "/usr/bin/python3",
+  "packages": {
+    "tensorflow": "2.21.0",
+    "keras": "3.12.4",
+    "numpy": "1.26.4",
+    "h5py": "3.14.0",
+    "nvidia-cudnn-cu12": "9.27.0.42",
+    "nvidia-cuda-runtime-cu12": "12.9.79",
+    "nvidia-cublas-cu12": "12.9.2.10",
+    "nvidia-cuda-nvcc-cu12": "12.9.86"
+  },
+  "tensorflow_build": {
+    "cpu_compiler": "clang",
+    "cuda_compute_capabilities": [
+      "sm_60",
+      "sm_70",
+      "sm_80",
+      "sm_89",
+      "compute_90"
+    ],
+    "cuda_version": "12.5.1",
+    "cudnn_version": "9",
+    "is_cuda_build": true,
+    "is_rocm_build": false,
+    "is_tensorrt_build": false
+  },
+  "checks": {
+    "keras2_checkpoint_compatibility": true,
+    "cpu_gpu_forward_and_gradients_batch64": true,
+    "40_gpu_updates_variable_batches_single_trace": true,
+    "nvidia_libraries_loaded_from_default_python_environment": true,
+    "weight_save_load_roundtrip": true,
+    "multiprocess_training_fresh_and_resume_2plus1": true,
+    "web_pvp_ai_both_hands_model_load_upload": true,
+    "pip_tensorflow_dependency_check": true,
+    "runtime_pins_match": true,
+    "project_virtual_environment_removed": true,
+    "no_cudnn_out_of_bounds_or_retracing_in_verification_log": true,
+    "gpu_calculation_after_virtual_environment_removal": true
+  },
+  "gpu": {
+    "compute_capability": [
+      12,
+      0
+    ],
+    "device_name": "NVIDIA GeForce RTX 5060 Laptop GPU"
+  },
+  "maximum_significant_gradient_relative_error": 5.355003235720743e-06,
+  "gpu_training_test_seconds": 13.299925726001675,
+  "training_loss_first_last": [
+    5.6983842849731445,
+    4.927304744720459
+  ],
+  "loaded_nvidia_libraries": [
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cublas/lib/libcublas.so.12",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cublas/lib/libcublasLt.so.12",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cuda_runtime/lib/libcudart.so.12",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn.so.9",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn_engines_precompiled.so.9",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn_engines_runtime_compiled.so.9",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn_engines_tensor_ir.so.9",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn_graph.so.9",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn_heuristic.so.9",
+    "/home/randiee/.local/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn_ops.so.9"
+  ],
+  "runtime_cudnn_version": 92700,
+  "preexisting_unrelated_system_dependency_issues": [
+    "pygobject 3.42.1 requires pycairo, which is not installed."
+  ],
+  "pip_check_returncode": 1,
+  "status": "passed",
+  "verified_at_utc": "2026-10-13T07:46:07.914286+00:00",
+  "validation_scope": {
+    "gpu_updates": 40,
+    "batch_sizes": [
+      1,
+      4,
+      16,
+      64
+    ],
+    "self_play_training_runs": 2,
+    "games_per_run": 3,
+    "workers": 2,
+    "max_moves_for_smoke_test": 4,
+    "production_weights_modified": false
+  },
+  "deployment": {
+    "type": "default_python_user_site",
+    "gpu_configuration": "/home/randiee/.config/tensorflow-gpu.sh",
+    "shell_startup_files": [
+      "/home/randiee/.bashrc",
+      "/home/randiee/.profile"
+    ],
+    "virtual_environment_removed": true,
+    "removed_legacy_packages": [
+      "tensorflow-estimator",
+      "tensorflow-io-gcs-filesystem",
+      "tensorboard",
+      "tensorboard-data-server"
+    ]
+  },
+  "tensorflow_core_kernels_may_use_ptx_jit": true
+}

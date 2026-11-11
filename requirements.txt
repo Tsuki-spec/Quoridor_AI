@@ -1,0 +1,5 @@
+# Python 3.10; TensorFlow installs its matching NVIDIA CUDA/cuDNN dependencies.
+tensorflow[and-cuda]==2.21.0
+keras==3.12.4
+numpy==1.26.4
+h5py==3.14.0

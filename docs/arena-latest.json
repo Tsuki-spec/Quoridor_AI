@@ -1,0 +1,39 @@
+{
+  "candidate": {
+    "algorithm": "alphazero",
+    "difficulty": "normal",
+    "simulations": 128,
+    "model_path": "models/quoridor-resnet-b4-c64.weights.h5"
+  },
+  "opponent": {
+    "algorithm": "alpha_beta",
+    "difficulty": "normal"
+  },
+  "max_moves": 200,
+  "opening": [],
+  "results": [
+    {
+      "candidate_side": 0,
+      "winner": 1,
+      "won": false,
+      "moves": 74,
+      "record": "a7608e0f6c4c4600a6f66abee669532f.json",
+      "matches_batched_full_trace": true
+    },
+    {
+      "candidate_side": 1,
+      "winner": 0,
+      "won": false,
+      "moves": 41,
+      "record": "6deb63e28e7e4e9cb19872b65888daa6.json",
+      "matches_batched_full_trace": true
+    }
+  ],
+  "wins": 0,
+  "source_sha256": {
+    "ai/search.py": "fa83c27d4799d97e06ee5a67a6b45f8b9188c45a7f2680c9f2f07e11face9931",
+    "ai/mcts.py": "6fe64d5c604eecd847da70824ed639b53ea81f3c2667974edb3486fbb077f4b1",
+    "train.py": "8ea6011cab3232e6904ef246d5ce6b2eac5154e60f554bea8c80a0a3eb098152"
+  },
+  "record_replay_verified": true
+}

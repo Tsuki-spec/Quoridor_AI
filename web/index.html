@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#28594c">
+    <title>Quoridor · 围墙棋</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/app.js" defer></script>
+</head>
+<body>
+    <div class="shell">
+        <header class="topbar">
+            <a class="brand" href="/" aria-label="Quoridor 首页">
+                <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span><strong>Quoridor</strong><small>围墙棋 · 先抵达对岸</small></span>
+            </a>
+            <div class="header-actions">
+                <div class="service"><span id="service-dot" class="dot"></span><span id="service-text">正在连接</span></div>
+                <a class="settings-link" href="#settings">对战设置 ↗</a>
+            </div>
+        </header>
+
+        <main class="layout">
+            <section class="card workspace" aria-label="Quoridor 对局">
+                <div class="workspace-top">
+                    <div class="live-status" role="status" aria-live="polite">
+                        <span id="turn-dot" class="dot"></span><span id="turn-text">准备棋盘</span>
+                    </div>
+                    <span id="match-mode" class="mode-tag">同屏双人</span>
+                </div>
+
+                <div class="players">
+                    <div id="player-0" class="player p0">
+                        <span class="pawn-icon" aria-hidden="true"></span>
+                        <div><div id="name-0" class="player-name">玩家一</div><div class="player-meta">目标：下方底线 ↓</div></div>
+                        <div class="wall-count"><strong id="walls-0">10</strong><span>剩余墙</span></div>
+                    </div>
+                    <div id="player-1" class="player p1">
+                        <span class="pawn-icon" aria-hidden="true"></span>
+                        <div><div id="name-1" class="player-name">玩家二</div><div class="player-meta">目标：上方底线 ↑</div></div>
+                        <div class="wall-count"><strong id="walls-1">10</strong><span>剩余墙</span></div>
+                    </div>
+                </div>
+
+                <div id="watch-controls" class="watch-controls" hidden>
+                    <button id="watch-toggle" class="secondary" type="button">继续观战</button>
+                    <button id="watch-step" class="secondary" type="button">单步</button>
+                    <label for="watch-speed">间隔
+                        <select id="watch-speed">
+                            <option value="100">快速</option>
+                            <option value="600" selected>舒适</option>
+                            <option value="1200">慢速</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div id="board-area" class="board-area">
+                    <svg id="board" viewBox="0 0 600 600" role="group" aria-label="九乘九棋盘"></svg>
+                    <div id="busy-overlay" class="busy-overlay" hidden>
+                        <span class="spinner" aria-hidden="true"></span><span id="busy-text">AI 正在思考…</span>
+                    </div>
+                </div>
+
+                <div class="board-tools">
+                    <div class="segment tool-segment" aria-label="行动类型">
+                        <button id="tool-move" class="selected" type="button" aria-pressed="true">◉ 走棋</button>
+                        <button id="tool-horizontal" type="button" aria-pressed="false">━ 横墙</button>
+                        <button id="tool-vertical" type="button" aria-pressed="false">┃ 竖墙</button>
+                    </div>
+                    <span class="step-count"><strong id="step-count">0</strong> 步</span>
+                </div>
+                <p id="board-caption" class="board-caption">点击高亮格子移动。</p>
+                <div id="match-actions" class="match-actions">
+                    <button id="undo" class="secondary" type="button" disabled>↶ 悔棋</button>
+                    <button id="restart" class="secondary" type="button">↻ 重新开始</button>
+                    <button id="retry-ai" class="secondary" type="button" hidden>重试 AI 落子</button>
+                </div>
+                <div id="replay-controls" class="replay-controls" hidden>
+                    <div class="replay-buttons">
+                        <button id="replay-first" class="secondary" type="button" aria-label="棋谱开头">|◀</button>
+                        <button id="replay-prev" class="secondary" type="button" aria-label="上一步">◀</button>
+                        <button id="replay-play" class="secondary" type="button">播放</button>
+                        <button id="replay-next" class="secondary" type="button" aria-label="下一步">▶</button>
+                        <button id="replay-last" class="secondary" type="button" aria-label="棋谱结尾">▶|</button>
+                        <button id="replay-exit" class="secondary" type="button">返回对局</button>
+                    </div>
+                    <label id="replay-position" for="replay-slider">0 / 0 步</label>
+                    <input id="replay-slider" type="range" min="0" max="0" value="0" aria-label="棋谱步数">
+                </div>
+
+                <div class="history">
+                    <div class="history-head"><span>最近八步</span><span id="ai-time">等待第一步</span></div>
+                    <ol id="move-list"><li class="empty-history">选择一个高亮格子，开始对局。</li></ol>
+                    <div class="record-actions">
+                        <button id="save-record" class="secondary" type="button">⇩ 保存棋谱</button>
+                        <button id="import-record" class="secondary" type="button">↥ 导入回放</button>
+                        <input id="record-file" type="file" accept=".json,application/json" hidden>
+                    </div>
+                    <p id="record-status" class="hint" role="status"></p>
+                </div>
+            </section>
+
+            <aside id="settings" class="sidebar" aria-label="对战设置">
+                <section class="card side-card">
+                    <div class="card-title"><h1>开始一局</h1><span class="subtle">9 × 9</span></div>
+                    <div class="segment" aria-label="对战模式">
+                        <button id="mode-ai" type="button" aria-pressed="false">人机对战</button>
+                        <button id="mode-pvp" class="selected" type="button" aria-pressed="true">双人对战</button>
+                        <button id="mode-watch" type="button" aria-pressed="false">AI 观战</button>
+                    </div>
+                    <div id="watch-options" hidden>
+                        <section class="agent-config green-agent">
+                            <h2>绿色 AI · 先手</h2>
+                            <div class="two-fields">
+                                <label class="field" for="watch-algorithm-0"><span class="field-label">算法</span>
+                                    <select id="watch-algorithm-0"><option value="alpha_beta">Alpha-Beta</option><option value="mcts">MCTS</option><option value="alphazero">AlphaZero</option></select>
+                                </label>
+                                <label class="field" for="watch-difficulty-0"><span class="field-label">难度</span>
+                                    <select id="watch-difficulty-0"><option value="easy">入门</option><option value="normal">标准</option><option value="hard">困难</option><option value="expert">挑战</option></select>
+                                </label>
+                            </div>
+                            <label id="watch-model-field-0" class="field" for="watch-model-0" hidden><span class="field-label">模型权重</span><select id="watch-model-0"></select></label>
+                        </section>
+                        <section class="agent-config gold-agent">
+                            <h2>金色 AI · 后手</h2>
+                            <div class="two-fields">
+                                <label class="field" for="watch-algorithm-1"><span class="field-label">算法</span>
+                                    <select id="watch-algorithm-1"><option value="alpha_beta">Alpha-Beta</option><option value="mcts" selected>MCTS</option><option value="alphazero">AlphaZero</option></select>
+                                </label>
+                                <label class="field" for="watch-difficulty-1"><span class="field-label">难度</span>
+                                    <select id="watch-difficulty-1"><option value="easy">入门</option><option value="normal">标准</option><option value="hard">困难</option><option value="expert">挑战</option></select>
+                                </label>
+                            </div>
+                            <label id="watch-model-field-1" class="field" for="watch-model-1" hidden><span class="field-label">模型权重</span><select id="watch-model-1"></select></label>
+                        </section>
+                        <label class="field" for="watch-max"><span class="field-label">步数上限</span><input id="watch-max" type="number" min="20" max="1000" value="400"></label>
+                    </div>
+                    <div id="ai-options" hidden>
+                        <div class="two-fields">
+                            <label class="field" for="algorithm">
+                                <span class="field-label">算法</span>
+                                <select id="algorithm">
+                                    <option value="alpha_beta" selected>Alpha-Beta</option>
+                                    <option value="mcts">MCTS</option>
+                                    <option value="alphazero">AlphaZero</option>
+                                </select>
+                            </label>
+                            <label class="field" for="difficulty">
+                                <span class="field-label">难度</span>
+                                <select id="difficulty">
+                                    <option value="easy">入门</option>
+                                    <option value="normal" selected>标准</option>
+                                    <option value="hard">困难</option>
+                                    <option value="expert">挑战</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="field">
+                            <span class="field-label">执棋顺序</span>
+                            <div class="segment">
+                                <button id="first" class="selected" type="button" aria-pressed="true">我先手</button>
+                                <button id="second" type="button" aria-pressed="false">AI 先手</button>
+                            </div>
+                        </div>
+                        <p id="algorithm-hint" class="hint">无需模型，即可开始。</p>
+                        <label id="neural-options" class="field" for="simulations" hidden>
+                            <span class="field-label">AlphaZero 搜索次数</span>
+                            <select id="simulations">
+                                <option value="64">快速 · 64 次</option>
+                                <option value="128" selected>标准 · 128 次</option>
+                                <option value="256">深入 · 256 次</option>
+                                <option value="512">细想 · 512 次</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p id="mode-hint" class="hint">同屏轮流操作，绿色先手，金色后手。</p>
+                    <button id="start" class="primary" type="button">开始双人对战 ↗</button>
+                </section>
+
+                <details id="model-panel" class="card disclosure">
+                    <summary><span>模型权重</span><span class="subtle">AlphaZero</span></summary>
+                    <div class="disclosure-body">
+                        <div id="model-state" class="model-state"><span class="dot"></span><span id="model-name">尚未载入模型</span></div>
+                        <label class="field-label" for="model-select">本地权重</label>
+                        <select id="model-select" aria-label="模型权重文件"><option value="">正在读取…</option></select>
+                        <details class="advanced">
+                            <summary>网络结构</summary>
+                            <div class="two-fields">
+                                <label class="field" for="blocks"><span class="field-label">残差块</span><input id="blocks" type="number" min="1" max="40" value="4"></label>
+                                <label class="field" for="channels"><span class="field-label">通道</span><input id="channels" type="number" min="1" max="512" value="64"></label>
+                            </div>
+                            <p class="hint">与训练时的网络结构保持一致。</p>
+                        </details>
+                        <div class="button-row">
+                            <button id="load" class="secondary" type="button">载入模型</button>
+                            <button id="refresh-models" class="secondary icon-button" type="button" aria-label="刷新模型列表">↻</button>
+                        </div>
+                        <button id="upload" class="secondary upload-button" type="button">＋ 选择权重文件</button>
+                        <input id="model-file" type="file" accept=".h5" hidden>
+                        <p class="hint">支持 .weights.h5；载入后用于新对局。</p>
+                    </div>
+                </details>
+
+                <details id="records-panel" class="card disclosure">
+                    <summary><span>历史棋谱</span><span class="subtle">保存与回放</span></summary>
+                    <div class="disclosure-body">
+                        <label class="field-label" for="saved-records">本地保存的对局</label>
+                        <select id="saved-records"><option value="">暂无棋谱</option></select>
+                        <button id="open-saved-record" class="secondary upload-button" type="button">打开回放</button>
+                        <p class="hint">结束时自动保存到 records/；也可手动保存未结束的对局。</p>
+                    </div>
+                </details>
+
+                <details id="rules" class="card disclosure">
+                    <summary><span>游戏规则</span><span class="subtle">如何落子</span></summary>
+                    <div class="disclosure-body notes">
+                        <p><strong>走棋</strong> · 点击高亮格子。遇到对手可以跳跃，后方被挡时可斜跳。</p>
+                        <p><strong>放墙</strong> · 选择横墙或竖墙，再点击棋格间的交点。每人有 10 堵墙。</p>
+                        <p><strong>获胜</strong> · 先到达对面底线。墙不能重叠、交叉或封死任一方的所有通路。</p>
+                    </div>
+                </details>
+                <p class="sidebar-note">一步走棋，或一堵墙。<br>每个回合，只做一个选择。</p>
+            </aside>
+        </main>
+        <footer class="footer"><span>QUORIDOR</span><span>两人 · 每人十堵墙 · 一条通往对岸的路</span></footer>
+    </div>
+    <div id="toast" class="toast" role="alert" hidden></div>
+</body>
+</html>
