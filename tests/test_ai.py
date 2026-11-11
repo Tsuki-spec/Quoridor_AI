@@ -6,7 +6,7 @@ import sys
 import unittest
 import numpy as np
 from game import Quoridor
-from ai.search import AlphaBetaAI, HeuristicMCTS, DIFFICULTIES, evaluate, paths, winning_actions
+from search import AlphaBetaAI, HeuristicMCTS, DIFFICULTIES, evaluate, paths, winning_actions
 import app
 
 

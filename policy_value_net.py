@@ -7,7 +7,7 @@ File introduction: TensorFlow / Keras residual network with policy and value hea
 import numpy as np
 import tensorflow as tf
 from game import ACTION_SIZE
-from ai.search import board_paths
+from search import board_paths
 
 
 class PolicyValueNet:

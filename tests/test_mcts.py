@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 from game import Quoridor
 import train
-from ai.mcts import MCTS, Node
-from ai.search import HeuristicMCTS, bounded_value, winning_actions
+from mcts import MCTS, Node
+from search import HeuristicMCTS, bounded_value, winning_actions
 
 
 class FixedNetwork:

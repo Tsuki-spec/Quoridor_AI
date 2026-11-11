@@ -17,8 +17,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 import numpy as np
 from game import ACTION_SIZE, Quoridor
-from ai.mcts import MCTS
-from ai.search import ALGORITHMS, DIFFICULTIES, choose_action
+from mcts import MCTS
+from search import ALGORITHMS, DIFFICULTIES, choose_action
 from train import CHANNELS, C_PUCT, HEURISTIC_MIX, REPETITION_PENALTY, RESIDUAL_BLOCKS, ROOT_PRIOR_MIX
 
 HOST = "127.0.0.1"
@@ -76,7 +76,7 @@ def read_model(path, blocks, channels):
     integer(channels, "通道数", 1, 512)
     with MODEL_LOCK:
         import tensorflow as tf
-        from ai.policy_value_net import PolicyValueNet
+        from policy_value_net import PolicyValueNet
         for gpu in tf.config.list_physical_devices("GPU"):
             tf.config.experimental.set_memory_growth(gpu, True)
         network = PolicyValueNet(residual_blocks = blocks, channels = channels)

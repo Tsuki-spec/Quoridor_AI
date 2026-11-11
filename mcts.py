@@ -7,7 +7,7 @@ File introduction: Monte Carlo Tree Search guided by a policy-value network.
 import math
 import numpy as np
 from game import ACTION_SIZE, BOARD_SIZE, PAWN_ACTIONS
-from ai.search import WIN, bounded_value, evaluate
+from search import WIN, bounded_value, evaluate
 
 
 class Node:

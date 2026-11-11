@@ -16,7 +16,7 @@ from multiprocessing.connection import wait
 from pathlib import Path
 import numpy as np
 from game import Quoridor
-from ai.mcts import MCTS
+from mcts import MCTS
 
 
 MODE = "train"  # "train" for self-play; "play" for terminal human-versus-AI.
@@ -385,7 +385,7 @@ def main():
         raise FileNotFoundError(f"找不到权重文件：{model_path}；请先训练或修改 MODEL_PATH")
     # Only the main process imports TensorFlow.
     import tensorflow as tf
-    from ai.policy_value_net import PolicyValueNet
+    from policy_value_net import PolicyValueNet
     for gpu in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(gpu, True)
     np.random.seed(SEED)

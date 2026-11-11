@@ -15,7 +15,7 @@ SIMULATIONS = 128
 MODEL_PATH = "models/quoridor-resnet-b4-c64.weights.h5"
 OPENING = []  # Optional legal action sequence before the AI turns.
 MAX_MOVES = 200
-REPORT_PATH = BASE_DIR / "docs" / "arena-latest.json"
+REPORT_PATH = BASE_DIR / "records" / "evaluation.json"
 
 
 def main():
@@ -43,7 +43,8 @@ def main():
     report = {"candidate": candidate, "opponent": opponent, "max_moves": MAX_MOVES,
               "opening": OPENING, "results": results, "wins": sum(row["won"] for row in results),
               "source_sha256": {name: hashlib.sha256((BASE_DIR / name).read_bytes()).hexdigest()
-                                for name in ("ai/search.py", "ai/mcts.py", "train.py")}}
+                                for name in ("search.py", "mcts.py", "train.py")}}
+    REPORT_PATH.parent.mkdir(parents = True, exist_ok = True)
     REPORT_PATH.write_text(json.dumps(report, ensure_ascii = False, indent = 2) + "\n", encoding = "utf-8")
     print(f"结果：{REPORT_PATH}；棋谱：{app.RECORD_DIR}", flush = True)
 

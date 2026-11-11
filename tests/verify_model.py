@@ -12,10 +12,10 @@ import tensorflow as tf
 BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE_DIR))
 from game import Quoridor
-from ai.policy_value_net import PolicyValueNet
+from policy_value_net import PolicyValueNet
 
 MODEL_PATH = BASE_DIR / "models/quoridor-resnet-b4-c64.weights.h5"
-LEGACY_PATH = BASE_DIR / "models/archive/quoridor-strength-v2-b4-c64.weights.h5"
+LEGACY_PATH = BASE_DIR / "models/archive/quoridor-strength-v3-b4-c64.weights.h5"
 
 
 def main():
