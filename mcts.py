@@ -6,8 +6,8 @@ File introduction: Monte Carlo Tree Search guided by a policy-value network.
 
 import math
 import numpy as np
-from game import ACTION_SIZE, BOARD_SIZE, PAWN_ACTIONS
-from search import WIN, bounded_value, evaluate
+from game import ACTION_SIZE, BOARD_SIZE, PAWN_ACTIONS, WALL_SIZE
+from search import WIN, board_paths, bounded_value, evaluate
 
 
 class Node:
@@ -18,6 +18,7 @@ class Node:
         self.children = {}
         self.evaluation = 0.0
         self.ranked = []
+        self.solved = None
 
     def mean_value(self):  # Value for the player to move.
         return self.value_sum / self.visits if self.visits else 0.0
@@ -42,6 +43,32 @@ class MCTS:
         self.evaluations = {}
 
     @staticmethod
+    def legal_actions(game):  # Reuse distance maps for wall legality and leaf evaluation.
+        if game.winner is not None:
+            return []
+        actions = sorted(row * BOARD_SIZE + col for row, col in game.pawn_moves())
+        if game.walls_left[game.current_player] <= 0:
+            return actions
+        horizontal, vertical = (frozenset(walls) for walls in game.walls)
+        first, second = (row * BOARD_SIZE + col for row, col in game.pawns)
+        for direction in (0, 1):
+            walls = horizontal if direction == 0 else vertical
+            for row in range(WALL_SIZE):
+                for col in range(WALL_SIZE):
+                    anchor = (row, col)
+                    if anchor in horizontal or anchor in vertical:
+                        continue
+                    adjacent = ((row, col - 1), (row, col + 1)) if direction == 0 else ((row - 1, col), (row + 1, col))
+                    if any(point in walls for point in adjacent):
+                        continue
+                    h = horizontal | {anchor} if direction == 0 else horizontal
+                    v = vertical | {anchor} if direction == 1 else vertical
+                    _, distances = board_paths(h, v)
+                    if distances[0][first] < PAWN_ACTIONS and distances[1][second] < PAWN_ACTIONS:
+                        actions.append(PAWN_ACTIONS + direction * WALL_SIZE * WALL_SIZE + row * WALL_SIZE + col)
+        return actions
+
+    @staticmethod
     def balanced_prior(actions, noise = False):
         groups = [[action for action in actions if action < PAWN_ACTIONS],
                   [action for action in actions if action >= PAWN_ACTIONS]]
@@ -56,14 +83,15 @@ class MCTS:
     def expand(self, node, game):
         if game.winner is not None:
             # The player to move has lost.
+            node.solved = -1.0
             return -1.0
         key = game.position_key()
         if key in self.evaluations:
-            priors, node.evaluation = self.evaluations[key]
+            priors, node.evaluation, node.solved = self.evaluations[key]
             node.children = {action: Node(prior) for action, prior in priors}
             node.ranked = sorted(node.children.items(), key = lambda item: item[1].prior, reverse = True)
             return node.evaluation
-        actions = game.legal_actions()
+        actions = self.legal_actions(game)
         logits, value = self.network.predict(game.state())
         estimates = []
         for action in actions:
@@ -85,12 +113,12 @@ class MCTS:
         for action, probability in zip(actions, probabilities):
             node.children[action] = Node(probability)
         if wins:
-            node.evaluation = 1.0
+            node.evaluation = node.solved = 1.0
         elif not safe:
-            node.evaluation = -1.0
+            node.evaluation = node.solved = -1.0
         else:
             node.evaluation = float((1 - self.heuristic_mix) * value + self.heuristic_mix * bounded_value(evaluate(game, game.current_player)))
-        self.evaluations[key] = (tuple(zip(actions, probabilities)), node.evaluation)
+        self.evaluations[key] = (tuple(zip(actions, probabilities)), node.evaluation, node.solved)
         node.ranked = sorted(node.children.items(), key = lambda item: item[1].prior, reverse = True)
         return node.evaluation
 
@@ -140,17 +168,22 @@ class MCTS:
             score = evaluate(following, player)
             repeat_costs[action] = self.repetition_penalty * 6 * repeats / (6 + abs(score) / 10)
         for _ in range(self.simulations):
+            if root.solved is not None:
+                break
             position = game.copy()
             node = root
             path = [root]
             seen = {root_key}
             cycle = False
-            while node.children:
+            while node.children and node.solved is None:
                 total = sum(child.visits for child in node.children.values())
                 scale = math.sqrt(total + 1)
                 # Child values use the opponent's perspective.
                 width = 8 + int(2 * math.sqrt(node.visits))
                 candidates = [item for index, item in enumerate(node.ranked) if index < width or item[0] < PAWN_ACTIONS]
+                wins = [item for item in candidates if item[1].solved == -1]
+                unknown = [item for item in candidates if item[1].solved != 1]
+                candidates = wins or unknown or candidates
                 action, child = max(
                     candidates,
                     key = lambda item: (
@@ -168,18 +201,30 @@ class MCTS:
                     break
                 seen.add(key)
             # Evaluate search cycles as draws.
-            value = 0.0 if cycle else self.expand(node, position)
+            value = node.solved if node.solved is not None else 0.0 if cycle else self.expand(node, position)
             for visited in reversed(path):
+                if visited.solved is None and visited.children:
+                    if any(child.solved == -1 for child in visited.children.values()):
+                        visited.solved = 1.0
+                    elif all(child.solved == 1 for child in visited.children.values()):
+                        visited.solved = -1.0
+                if visited.solved is not None:
+                    value = visited.solved
                 visited.visits += 1
                 visited.value_sum += value
                 # Switch perspective at each parent.
                 value = -value
         counts = np.zeros(ACTION_SIZE, dtype = np.float32)
+        wins = {action for action, child in root.children.items() if child.solved == -1}
+        safe = {action for action, child in root.children.items() if child.solved != 1}
+        keep = wins or safe or set(root.children)
         for action, child in root.children.items():
-            counts[action] = child.visits
+            if action in keep:
+                counts[action] = child.visits
         if not counts.any():
             for action, child in root.children.items():
-                counts[action] = child.prior
+                if action in keep:
+                    counts[action] = child.prior
         if temperature == 0:
             probabilities = np.zeros(ACTION_SIZE, dtype = np.float32)
             probabilities[int(np.argmax(counts))] = 1.0
