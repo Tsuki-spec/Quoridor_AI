@@ -148,6 +148,7 @@ class WatchRecordTests(unittest.TestCase):
             self.assertEqual([p["model"]["name"] for p in state["players"]], list(files))
             for _ in range(2):
                 state = app.api_post("/api/ai", {"id": state["id"]})
+            self.assertEqual(state["moves"][-1]["search"]["tactical_mix"], app.TACTICAL_MIX)
             self.assertIs(app.ACTIVE_MODEL, sentinel)
             same = [{"algorithm": "alphazero", "model_path": "a-b4-c64.h5"}] * 2
             load.reset_mock()

@@ -21,7 +21,7 @@ LEGACY_PATH = BASE_DIR / "models/archive/quoridor-strength-v3-b4-c64.weights.h5"
 def main():
     for gpu in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(gpu, True)
-    tf.config.experimental.enable_tensor_float_32_execution(False)
+    tf.config.experimental.enable_tensor_float_32_execution(True)
     fixture = json.loads((BASE_DIR / "tests/maze_record.json").read_text())
     game, games, states = Quoridor(), [], []
     for action in fixture["actions"]:
@@ -30,6 +30,7 @@ def main():
         game.play(action, validate = False)
     states = np.asarray(states)
     network = PolicyValueNet()
+    assert not tf.config.experimental.tensor_float_32_execution_enabled()
     network.load(MODEL_PATH)
     encoded = network.encode_states(states)
     assert encoded.shape == (len(states), 9, 9, 9)

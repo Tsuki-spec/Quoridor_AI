@@ -1,9 +1,11 @@
 """Run with python3 -m unittest discover -s tests -v; no model or GPU required."""
 
 import math
+import json
 import random
 import sys
 import unittest
+from pathlib import Path
 import numpy as np
 from game import Quoridor
 from search import AlphaBetaAI, HeuristicMCTS, DIFFICULTIES, evaluate, paths, winning_actions
@@ -11,6 +13,22 @@ import app
 
 
 class SearchTests(unittest.TestCase):
+    def test_arena_openings_are_distinct_legal_and_nonterminal(self):
+        positions = set()
+        for filename, count in (("arena_openings.json", 20), ("validation_openings.json", 20),
+                                ("holdout65_openings.json", 30)):
+            suite = json.loads(Path(__file__).with_name(filename).read_text())
+            self.assertEqual(len(suite["openings"]), count)
+            for opening in suite["openings"]:
+                game = Quoridor()
+                for action in opening:
+                    self.assertIsNone(game.winner)
+                    game.play(action)
+                self.assertIsNone(game.winner)
+                self.assertNotIn(game.position_key(), positions)
+                self.assertLessEqual(abs(game.shortest_path_length(0) - game.shortest_path_length(1)), 3)
+                positions.add(game.position_key())
+
     def test_distance_cache_matches_rules(self):
         randomizer = random.Random(17)
         game = Quoridor()

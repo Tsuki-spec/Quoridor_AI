@@ -27,6 +27,7 @@ SIMULATIONS = 400  # MCTS simulations per action.
 C_PUCT = 1.5  # Exploration coefficient used by training and web matches.
 ROOT_PRIOR_MIX = 0.05  # Mix type-balanced exploration into the root prior, including during evaluation.
 HEURISTIC_MIX = 0.15  # Path guidance for priors and leaf values; 0 disables this blend.
+TACTICAL_MIX = 0.5  # Blend two-ply tactical estimates into leaf values; 0 disables this search.
 REPETITION_PENALTY = 0.2  # Root cost for repeated full states or pawn positions under the same wall setup.
 UPDATES = 8  # Gradient updates per generated game.
 BATCH_SIZE = 64  # Training batch size; reduced while the replay buffer is small.
@@ -67,6 +68,8 @@ def validate_config():
         raise ValueError("ROOT_PRIOR_MIX 必须在 [0, 1] 范围内")
     if not np.isfinite(HEURISTIC_MIX) or not 0 <= HEURISTIC_MIX <= 1:
         raise ValueError("HEURISTIC_MIX 必须在 [0, 1] 范围内")
+    if not np.isfinite(TACTICAL_MIX) or not 0 <= TACTICAL_MIX <= 1:
+        raise ValueError("TACTICAL_MIX 必须在 [0, 1] 范围内")
     if not np.isfinite(REPETITION_PENALTY) or REPETITION_PENALTY < 0:
         raise ValueError("REPETITION_PENALTY 必须是有限非负数")
     if not np.isfinite(CURRENT_DISTANCE_MIX) or not 0 <= CURRENT_DISTANCE_MIX <= 1:
@@ -184,14 +187,16 @@ def self_play_worker(connection):
             task = connection.recv()
             np.random.seed(task["seed"])
             search = MCTS(RemoteNetwork(connection), task["simulations"], task["c_puct"],
-                          prior_mix = task["root_prior_mix"], repetition_penalty = task["repetition_penalty"], heuristic_mix = task["heuristic_mix"])
+                          prior_mix = task["root_prior_mix"], repetition_penalty = task["repetition_penalty"],
+                          heuristic_mix = task["heuristic_mix"], tactical_mix = task["tactical_mix"])
             started = time.perf_counter()
             samples, winner, info = self_play(
                 search, task["max_moves"], task["temperature"], task["late_temperature"], task["temperature_moves"],
                 return_info = True, distance_value_weight = task["distance_value_weight"],
                 distance_value_scale = task["distance_value_scale"], current_distance_mix = task["current_distance_mix"])
             info.update({"episode": task["episode"], "seed": task["seed"],
-                        "worker_pid": os.getpid(), "self_play_seconds": time.perf_counter() - started})
+                        "worker_pid": os.getpid(), "self_play_seconds": time.perf_counter() - started,
+                        "tactical_mix": search.tactical_mix})
             connection.send(("result", samples, winner, info))
     except (EOFError, BrokenPipeError):
         pass
@@ -240,7 +245,8 @@ def game_batches(network, search):
                     "late_temperature": LATE_TEMPERATURE, "temperature_moves": TEMPERATURE_MOVES,
                     "distance_value_weight": DISTANCE_VALUE_WEIGHT, "distance_value_scale": DISTANCE_VALUE_SCALE,
                     "current_distance_mix": CURRENT_DISTANCE_MIX, "root_prior_mix": ROOT_PRIOR_MIX,
-                    "repetition_penalty": REPETITION_PENALTY, "heuristic_mix": HEURISTIC_MIX
+                    "repetition_penalty": REPETITION_PENALTY, "heuristic_mix": HEURISTIC_MIX,
+                    "tactical_mix": TACTICAL_MIX
                 })
             while active:
                 ready = wait(list(active), timeout = 1.0)
@@ -325,7 +331,8 @@ def train(network, search):
                             "simulations": SIMULATIONS, "c_puct": C_PUCT, "self_play_workers": min(SELF_PLAY_WORKERS, GAMES),
                             "elapsed_seconds": info["self_play_seconds"], "real_outcome_sample_fraction": real_outcome_fraction,
                             "nonzero_value_sample_fraction": nonzero_value_fraction, "root_prior_mix": ROOT_PRIOR_MIX,
-                            "repetition_penalty": REPETITION_PENALTY, "heuristic_mix": HEURISTIC_MIX, "decisive_game_weight": DECISIVE_GAME_WEIGHT})
+                            "repetition_penalty": REPETITION_PENALTY, "heuristic_mix": HEURISTIC_MIX,
+                            "tactical_mix": TACTICAL_MIX, "decisive_game_weight": DECISIVE_GAME_WEIGHT})
                 if trace_dir is not None:
                     trace_path = trace_dir / f"game_{episode:04d}_{time.time_ns()}.json"
                     trace_path.write_text(json.dumps(info, ensure_ascii = False, indent = 2), encoding = "utf-8")
@@ -398,7 +405,8 @@ def main():
     else:
         print(f"从随机权重开始训练，保存路径：{model_path}")
     search = MCTS(network, simulations = SIMULATIONS, c_puct = C_PUCT,
-                  prior_mix = ROOT_PRIOR_MIX, repetition_penalty = REPETITION_PENALTY, heuristic_mix = HEURISTIC_MIX)
+                  prior_mix = ROOT_PRIOR_MIX, repetition_penalty = REPETITION_PENALTY,
+                  heuristic_mix = HEURISTIC_MIX, tactical_mix = TACTICAL_MIX)
     if MODE == "train":
         train(network, search)
     else:

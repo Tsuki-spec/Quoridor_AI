@@ -7,7 +7,7 @@ File introduction: Monte Carlo Tree Search guided by a policy-value network.
 import math
 import numpy as np
 from game import ACTION_SIZE, BOARD_SIZE, PAWN_ACTIONS, WALL_SIZE
-from search import WIN, board_paths, bounded_value, evaluate
+from search import WIN, SearchBase, board_paths, bounded_value, evaluate
 
 
 class Node:
@@ -25,7 +25,7 @@ class Node:
 
 
 class MCTS:
-    def __init__(self, network, simulations = 50, c_puct = 1.5, prior_mix = 0.05, repetition_penalty = 0.2, heuristic_mix = 0.15):
+    def __init__(self, network, simulations = 50, c_puct = 1.5, prior_mix = 0.05, repetition_penalty = 0.2, heuristic_mix = 0.15, tactical_mix = 0.5):
         if not np.isfinite(prior_mix) or not 0 <= prior_mix <= 1:
             raise ValueError("prior_mix 必须在 [0, 1] 范围内")
         if not np.isfinite(repetition_penalty) or repetition_penalty < 0:
@@ -34,6 +34,11 @@ class MCTS:
             raise ValueError("heuristic_mix 必须在 [0, 1] 范围内")
         if not isinstance(simulations, int) or simulations <= 0 or not np.isfinite(c_puct) or c_puct < 0:
             raise ValueError("simulations 必须是正整数，c_puct 必须是有限非负数")
+        if not np.isfinite(tactical_mix) or not 0 <= tactical_mix <= 1:
+            raise ValueError("tactical_mix 必须在 [0, 1] 范围内")
+        self.tactical_mix = tactical_mix
+        self.ranker = SearchBase("normal")
+        self.rank_cache = {}
         self.heuristic_mix = heuristic_mix
         self.network = network
         self.simulations = simulations
@@ -118,9 +123,61 @@ class MCTS:
             node.evaluation = node.solved = -1.0
         else:
             node.evaluation = float((1 - self.heuristic_mix) * value + self.heuristic_mix * bounded_value(evaluate(game, game.current_player)))
+        if node.solved is None and self.tactical_mix:
+            tactical = bounded_value(self.tactical(game, node.children))
+            node.evaluation = (1 - self.tactical_mix) * node.evaluation + self.tactical_mix * tactical
         self.evaluations[key] = (tuple(zip(actions, probabilities)), node.evaluation, node.solved)
         node.ranked = sorted(node.children.items(), key = lambda item: item[1].prior, reverse = True)
         return node.evaluation
+
+    def short_actions(self, game):
+        actions = sorted(row * BOARD_SIZE + col for row, col in game.pawn_moves())
+        if game.walls_left[game.current_player] <= 0:
+            return actions
+        horizontal, vertical = (frozenset(walls) for walls in game.walls)
+        first, second = (row * BOARD_SIZE + col for row, col in game.pawns)
+        for action in self.ranker.wall_candidates(game, False):
+            direction, anchor = divmod(action - PAWN_ACTIONS, WALL_SIZE * WALL_SIZE)
+            row, col = divmod(anchor, WALL_SIZE)
+            anchor = (row, col)
+            walls = horizontal if direction == 0 else vertical
+            if anchor in horizontal or anchor in vertical:
+                continue
+            adjacent = ((row, col - 1), (row, col + 1)) if direction == 0 else ((row - 1, col), (row + 1, col))
+            if any(point in walls for point in adjacent):
+                continue
+            h = horizontal | {anchor} if direction == 0 else horizontal
+            v = vertical | {anchor} if direction == 1 else vertical
+            _, distances = board_paths(h, v)
+            if distances[0][first] < PAWN_ACTIONS and distances[1][second] < PAWN_ACTIONS:
+                actions.append(action)
+        return actions
+
+    def ranked_moves(self, game, actions = None):
+        key = (game.position_key(), actions is not None)
+        if key in self.rank_cache:
+            return self.rank_cache[key]
+        ranked = []
+        for action in self.short_actions(game) if actions is None else actions:
+            following = game.copy()
+            following.play(action, validate = False)
+            ranked.append((evaluate(following, game.current_player), action))
+        ranked.sort(reverse = True)
+        pawns = [item for item in ranked if item[1] < PAWN_ACTIONS]
+        walls = [item for item in ranked if item[1] >= PAWN_ACTIONS][:4]
+        self.rank_cache[key] = sorted(pawns + walls, reverse = True)
+        return self.rank_cache[key]
+
+    def tactical(self, game, actions):  # Candidate pruning makes this an estimate, not a proof.
+        scores = []
+        for _, action in self.ranked_moves(game, actions):
+            following = game.copy()
+            following.play(action, validate = False)
+            if following.winner is not None:
+                return WIN
+            replies = self.ranked_moves(following)
+            scores.append(-replies[0][0])
+        return max(scores)
 
     def search(self, game, training = False, temperature = 1.0, position_counts = None):
         if game.winner is not None:
@@ -136,6 +193,7 @@ class MCTS:
                 probabilities[winning_moves[0]] = 1.0
             return probabilities
         self.evaluations = {}  # Weights may change between searches during training.
+        self.rank_cache = {}
         root = Node()
         self.expand(root, game)
         actions = list(root.children)

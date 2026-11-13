@@ -19,7 +19,7 @@ import numpy as np
 from game import ACTION_SIZE, Quoridor
 from mcts import MCTS
 from search import ALGORITHMS, DIFFICULTIES, choose_action
-from train import CHANNELS, C_PUCT, HEURISTIC_MIX, REPETITION_PENALTY, RESIDUAL_BLOCKS, ROOT_PRIOR_MIX
+from train import CHANNELS, C_PUCT, HEURISTIC_MIX, REPETITION_PENALTY, RESIDUAL_BLOCKS, ROOT_PRIOR_MIX, TACTICAL_MIX
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -404,11 +404,13 @@ def api_post(route, data):
             agent = match.players[match.game.current_player]
             if agent["algorithm"] == "alphazero":
                 with MODEL_LOCK:
-                    policy = MCTS(agent["model"]["network"], agent["simulations"], C_PUCT,
-                                  prior_mix = ROOT_PRIOR_MIX, repetition_penalty = REPETITION_PENALTY, heuristic_mix = HEURISTIC_MIX).search(
-                        match.game, training = False, temperature = 0, position_counts = visits)
+                    engine = MCTS(agent["model"]["network"], agent["simulations"], C_PUCT,
+                                  prior_mix = ROOT_PRIOR_MIX, repetition_penalty = REPETITION_PENALTY,
+                                  heuristic_mix = HEURISTIC_MIX, tactical_mix = TACTICAL_MIX)
+                    policy = engine.search(match.game, training = False, temperature = 0, position_counts = visits)
                 action = int(np.argmax(policy))
-                search = {"algorithm": "alphazero", "difficulty": agent["difficulty"], "simulations": agent["simulations"]}
+                search = {"algorithm": "alphazero", "difficulty": agent["difficulty"],
+                          "simulations": agent["simulations"], "tactical_mix": engine.tactical_mix}
             else:
                 action, search = choose_action(match.game, agent["algorithm"], agent["difficulty"], visits)
             match.commit(action, round(time.perf_counter() - started, 3), search)

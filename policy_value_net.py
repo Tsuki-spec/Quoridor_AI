@@ -15,6 +15,8 @@ class PolicyValueNet:
         if any(not isinstance(number, int) or number <= 0 for number in (residual_blocks, channels)):
             raise ValueError("residual_blocks 和 channels 必须是正整数")
 
+        # Reduce numerical differences between single-state and batched inference.
+        tf.config.experimental.enable_tensor_float_32_execution(False)
         self.distance_features = bool(distance_features)
         self.race_features = self.distance_features and bool(race_features)
         self.residual_blocks = residual_blocks
