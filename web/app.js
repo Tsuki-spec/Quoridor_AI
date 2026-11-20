@@ -1,6 +1,8 @@
 const $ = id => document.getElementById(id);
 const svgNS = "http://www.w3.org/2000/svg";
-const colors = ["#28594c", "#b8873c"];
+const colors = ["#96d9ad", "#f3bc73"];
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const positionLayer = $("board-position");
 let state = null,
     busy = false,
     mode = "pvp",
@@ -91,7 +93,8 @@ function updateControls() {
     $("undo").disabled = busy || !state?.can_undo || !!replayData;
     $("match-actions").hidden = !!replayData;
     $("save-record").disabled = busy || !state;
-    $("save-record").textContent = replayData ? "⇩ 下载棋谱" : "⇩ 保存棋谱";
+    $("move-tools").hidden = watch || !!replayData;
+    $("save-record").textContent = replayData ? "下载棋谱" : "保存棋谱";
     $("open-saved-record").disabled = busy || !$("saved-records").value;
     $("replay-controls").hidden = !replayData;
     const length = replayData?.record.moves.length || 0;
@@ -114,17 +117,16 @@ function updateStatus() {
     $("match-mode").textContent = replayData ? "棋谱回放" : state.mode === "watch" ? "AI 对战" : state.mode === "ai" ?
         `${algorithms[engine]?.label || engine} · ${difficulties[state.difficulty]?.label || "标准"}` : "同屏双人";
     $("retry-ai").hidden = !!replayData || terminal || state.mode !== "ai" || state.human_turn;
-    $("board-caption").textContent = replayData ? "使用下方进度条或箭头，查看每一步。" :
+    $("board-caption").textContent = replayData ? "拖动进度条或使用箭头查看每一步。" :
         terminal ? "这一局已经结束，可保存棋谱或重新开始。" : state.mode === "watch" ?
-        `${watching ? "双方 AI 自动轮流落子。" : "观战已暂停，可继续或单步推进。"}上限 ${state.max_moves} 步。` : !state.human_turn ?
-        "轮到 AI，正在思考。" : tool === "move" ? "点击高亮格子移动；遇到对手可以跳跃。" : "点击棋格间的交点放墙；绿色可放，红色不可放。";
+        `${watching ? "双方 AI 轮流落子" : "观战已暂停"} · 上限 ${state.max_moves} 步` : !state.human_turn ?
+        "等待 AI 落子。" : tool === "move" ? "选择高亮格子走棋。" : "选择棋格之间的交点放墙。";
     for (let player = 0; player < 2; player++) {
         $("name-" + player).textContent = playerName(player);
         $("walls-" + player).textContent = state.walls_left[player];
         const agent = state.players?.[player];
-        $("player-" + player).querySelector(".player-meta").textContent = state.mode === "watch" && agent ?
-            `${difficulties[agent.difficulty]?.label || ""} · 目标${player === 0 ? "向下 ↓" : "向上 ↑"}` :
-            `目标：${player === 0 ? "下方底线 ↓" : "上方底线 ↑"}`;
+        const role = state.mode === "watch" && agent ? difficulties[agent.difficulty]?.label : player === 0 ? "先手" : "后手";
+        $("player-" + player).querySelector(".player-meta").textContent = `${role || ""} · 目标${player === 0 ? "下方" : "上方"}`;
         $("player-" + player).classList.toggle("active", terminal ? state.winner === player : state.current_player ===
             player);
     }
@@ -153,26 +155,26 @@ function wallShape(direction, row, column) {
     };
 }
 
-function drawBoard() {
+function drawBoard(animate = false) {
     if (!state) return;
-    const board = $("board");
+    const board = positionLayer;
+    const previousPawns = animate && !reducedMotion.matches ?
+        [...board.querySelectorAll(".pawn")].map(pawn => [Number(pawn.dataset.x), Number(pawn.dataset.y)]) : [];
     board.replaceChildren();
     const legal = new Set(state.legal_actions),
         last = state.moves.at(-1)?.action;
     for (let index = 0; index < 9; index++) {
         board.append(svgElement("text", {
             x: 60 + index * 60,
-            y: 18,
+            y: 19,
             "text-anchor": "middle",
-            fill: "#9aa18f",
-            "font-size": 10
+            class: "board-coordinate"
         }, String.fromCharCode(65 + index)));
         board.append(svgElement("text", {
             x: 18,
             y: 64 + index * 60,
             "text-anchor": "middle",
-            fill: "#9aa18f",
-            "font-size": 10
+            class: "board-coordinate"
         }, String(index + 1)));
     }
     board.append(svgElement("line", {
@@ -183,7 +185,7 @@ function drawBoard() {
         stroke: colors[1],
         "stroke-width": 3,
         "stroke-linecap": "round",
-        opacity: .48
+        opacity: .93
     }));
     board.append(svgElement("line", {
         x1: 34,
@@ -193,33 +195,33 @@ function drawBoard() {
         stroke: colors[0],
         "stroke-width": 3,
         "stroke-linecap": "round",
-        opacity: .48
+        opacity: .93
     }));
     for (let row = 0; row < 9; row++)
         for (let column = 0; column < 9; column++) {
             const action = row * 9 + column,
                 allowed = tool === "move" && state.human_turn && legal.has(action),
                 selected = last === action;
+            const alternate = (row + column) % 2 !== 0;
             const cell = svgElement("rect", {
                 x: 34 + column * 60,
                 y: 34 + row * 60,
                 width: 52,
                 height: 52,
-                rx: 6,
-                class: `cell${allowed?" can-move":""}${selected?" last-cell":""}`,
+                rx: 4,
+                class: `cell${alternate ? " alternate" : ""}${allowed ? " can-move" : ""}${selected ? " last-cell" : ""}`,
                 "data-action": action,
                 role: "button",
                 tabindex: allowed ? 0 : -1,
+                "aria-disabled": !allowed,
                 "aria-label": `走到 ${String.fromCharCode(65+column)}${row+1}${allowed?"，合法走法":""}`
             });
             board.append(cell);
             if (allowed) board.append(svgElement("circle", {
                 cx: 60 + column * 60,
                 cy: 60 + row * 60,
-                r: 4,
-                fill: colors[state.current_player],
-                opacity: .5,
-                "pointer-events": "none"
+                r: 5,
+                class: "move-marker"
             }));
         }
     state.walls.forEach((positions, direction) => positions.forEach(([row, column]) => {
@@ -230,23 +232,24 @@ function drawBoard() {
         }));
     }));
     state.pawns.forEach(([row, column], player) => {
-        board.append(svgElement("circle", {
-            cx: 60 + column * 60,
-            cy: 60 + row * 60,
-            r: 17,
-            fill: colors[player],
-            stroke: "#fffdf3",
-            "stroke-width": 3,
-            class: "pawn"
-        }));
-        board.append(svgElement("circle", {
-            cx: 56 + column * 60,
-            cy: 55 + row * 60,
-            r: 4,
-            fill: "white",
-            opacity: .22,
-            "pointer-events": "none"
-        }));
+        const x = 60 + column * 60, y = 60 + row * 60;
+        const pawn = svgElement("g", {transform: `translate(${x} ${y})`, class: "pawn",
+            "data-x": x, "data-y": y, "aria-hidden": "true"});
+        const piece = svgElement("g", {});
+        piece.append(
+            svgElement("circle", {r: 20, fill: player === 0 ? "url(#pawn-green)" : "url(#pawn-gold)",
+                stroke: player === 0 ? "#173b29" : "#694220", "stroke-width": 1.5}),
+            svgElement("circle", {r: 15, fill: "none", stroke: "#fff2d4", opacity: .38})
+        );
+        pawn.append(piece);
+        board.append(pawn);
+        const previous = previousPawns[player];
+        if (previous && (previous[0] !== x || previous[1] !== y)) {
+            piece.animate(
+                [{transform: `translate(${previous[0] - x}px, ${previous[1] - y}px)`}, {transform: "translate(0, 0)"}],
+                {duration: 210, easing: "cubic-bezier(.2, .75, .25, 1)"}
+            );
+        }
     });
     if (tool !== "move" && state.human_turn && state.winner === null)
         for (let row = 0; row < 8; row++)
@@ -261,6 +264,7 @@ function drawBoard() {
                     "data-action": action,
                     role: "button",
                     tabindex: valid ? 0 : -1,
+                    "aria-disabled": !valid,
                     "aria-label": `${direction===0?"横墙":"竖墙"} ${String.fromCharCode(65+column)}${row+1}${valid?"，可放置":"，不可放置"}`
                 });
                 group.append(svgElement("rect", {
@@ -295,12 +299,13 @@ function actionLabel(action) {
 
 function render(next) {
     const newlySaved = next.record_saved && (!state?.record_saved || state.saved_record !== next.saved_record);
+    const animate = state && state.id === next.id && Math.abs(state.move_count - next.move_count) === 1;
     state = next;
     if (!replayData && state.id) sessionStorage.setItem("quoridor-match", state.id);
     if (!replayData && state.finished) stopWatch();
     $("step-count").textContent = state.move_count;
     updateStatus();
-    drawBoard();
+    drawBoard(animate);
     const list = $("move-list");
     list.replaceChildren();
     const recent = state.moves.slice(-8),
@@ -308,7 +313,7 @@ function render(next) {
     if (!recent.length) {
         const item = document.createElement("li");
         item.className = "empty-history";
-        item.textContent = replayData ? "棋谱起始局面。" : state.mode === "watch" ? "等待 AI 第一步。" : "选择一个高亮格子，开始对局。";
+        item.textContent = replayData ? "棋谱起始局面" : "暂无落子";
         list.append(item);
     }
     recent.forEach((move, index) => {
@@ -322,16 +327,18 @@ function render(next) {
         dot.style.background = colors[move.player];
         label.textContent = actionLabel(move.action);
         item.append(number, dot, label);
+        if (animate && index === recent.length - 1) item.classList.add("recent-move");
         list.append(item);
     });
-    const aiMove = [...state.moves].reverse().find(move => move.seconds !== null);
+    const aiMove = [...state.moves].reverse().find(move => typeof move.seconds === "number");
     const stats = state.ai_stats;
     const work = stats?.algorithm === "alpha_beta" ? (stats.depth ? ` · 完成 ${stats.depth} 层搜索` : " · 路径评估") :
         stats?.simulations ? ` · ${stats.simulations} 次模拟` : "";
-    $("ai-time").textContent = aiMove ? `思考 ${aiMove.seconds.toFixed(1)}s${work}` : "等待第一步";
+    $("ai-time").hidden = !aiMove;
+    $("ai-time").textContent = aiMove ? `思考 ${aiMove.seconds.toFixed(1)} 秒${work}` : "";
     $("undo").disabled = busy || !state.can_undo;
     $("record-status").textContent = replayData ? "只读回放，返回对局后可继续游戏。" : state.record_error ||
-        (state.record_saved ? `已保存到 records/${state.saved_record}` : "结束时自动保存，也可保存当前进度。");
+        (state.record_saved ? "当前棋谱已保存" : "");
     updateControls();
     if (newlySaved) refreshRecords().catch(() => {});
 }
@@ -345,7 +352,7 @@ function selectMode(value) {
     }
     $("ai-options").hidden = value !== "ai";
     $("watch-options").hidden = value !== "watch";
-    $("start").textContent = value === "watch" ? "开始 AI 对战 ↗" : value === "ai" ? "开始人机对战 ↗" : "开始双人对战 ↗";
+    $("start-label").textContent = value === "watch" ? "开始 AI 对战" : value === "ai" ? "开始人机对战" : "开始双人对战";
     updateAIOptions();
 }
 
@@ -443,6 +450,10 @@ function selectTool(value) {
     updateStatus();
 }
 
+function revealBoard() {
+    $("board-area").scrollIntoView({block: "nearest", inline: "nearest"});
+}
+
 async function playAI() {
     if (!state || state.finished || state.winner !== null || state.mode !== "ai" || state.human_turn || replayData) return;
     setBusy(true, "AI 正在思考…");
@@ -483,6 +494,7 @@ async function startMatch(useCurrent = false) {
         if (state.mode === "watch") selectWatchSettings(state.players, state.max_moves);
         else selectAISettings(state.algorithm, state.difficulty, state.simulations);
         selectTool("move");
+        revealBoard();
         if (state.mode === "watch") watching = true;
         else await playAI();
     } catch (error) {
@@ -492,10 +504,10 @@ async function startMatch(useCurrent = false) {
     }
 }
 
-async function submitAction(action) {
+async function submitAction(action, fromKeyboard = false) {
     if (busy || !state || state.finished || state.winner !== null || !state.human_turn || replayData) return;
     if (!state.legal_actions.includes(action)) {
-        toast(action < 81 ? "请选择高亮的合法落点。" : "这里不能放墙，请选择绿色预览的位置。", true);
+        toast(action < 81 ? "请选择高亮的合法落点。" : "这里不能放墙，请选择其他交点。", true);
         return;
     }
     if ((tool === "move") !== (action < 81)) return;
@@ -510,6 +522,10 @@ async function submitAction(action) {
         toast(error.message, true);
     } finally {
         setBusy(false);
+        if (fromKeyboard && document.activeElement === document.body) {
+            const target = positionLayer.querySelector('[tabindex="0"]') || $(state.finished ? "restart" : "tool-" + tool);
+            target.focus({preventScroll: true});
+        }
     }
 }
 
@@ -694,6 +710,7 @@ function enterReplay(data) {
     if (!replayData) liveState = state;
     replayData = data;
     showReplay(0);
+    revealBoard();
 }
 
 function queueReplay() {
@@ -748,6 +765,7 @@ async function exitReplay() {
 $("mode-ai").onclick = () => selectMode("ai");
 $("mode-pvp").onclick = () => selectMode("pvp");
 $("mode-watch").onclick = () => selectMode("watch");
+$("rules-link").onclick = () => { $("rules").open = true; };
 for (let side = 0; side < 2; side++) $("watch-algorithm-" + side).onchange = updateWatchOptions;
 $("watch-toggle").onclick = () => {
     if (watching) stopWatch();
@@ -855,7 +873,7 @@ $("board").addEventListener("keydown", event => {
     const target = event.target.closest("[data-action]");
     if (target) {
         event.preventDefault();
-        submitAction(Number(target.getAttribute("data-action")));
+        submitAction(Number(target.getAttribute("data-action")), true);
     }
 });
 
